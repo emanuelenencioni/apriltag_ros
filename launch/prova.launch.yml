@@ -1,0 +1,11 @@
+launch:
+- arg:
+    name: device
+    default: "0"
+
+
+- node:
+      pkg: apriltag_ros
+      exec: apriltag_ros_node
+      name: apriltag_ros_node
+      output: screen
