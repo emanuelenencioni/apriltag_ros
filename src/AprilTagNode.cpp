@@ -17,7 +17,7 @@
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h> 
-
+#include <opencv2/imgcodecs.hpp> 
 // apriltag
 #include "tag_functions.hpp"
 #include <apriltag/apriltag.h>
@@ -91,6 +91,7 @@ private:
     std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync;
 
     const rclcpp::Publisher<apriltag_msgs::msg::AprilTagDetectionArray>::SharedPtr pub_detections;
+    const rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr debug_img_pub;
     tf2_ros::TransformBroadcaster tf_broadcaster;
 
     pose_estimation_f estimate_pose = nullptr;
@@ -124,6 +125,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     td(apriltag_detector_create()),
     // topics
     pub_detections(create_publisher<apriltag_msgs::msg::AprilTagDetectionArray>("detections", rclcpp::QoS(1))),
+    debug_img_pub(create_publisher<sensor_msgs::msg::Image>("debug_image", rclcpp::QoS(1))),
     tf_broadcaster(this)
 {
     rclcpp::QoS qos = rclcpp::QoS(10);
@@ -133,7 +135,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     sync->registerCallback(std::bind(&AprilTagNode::onCamera, this, std::placeholders::_1, std::placeholders::_2));
 
     const std::string tag_family = declare_parameter("family", "36h11", descr("tag family", true));
-    tag_edge_size = declare_parameter("size", 1.0, descr("default tag size", true));
+    tag_edge_size = declare_parameter("size", 0.05, descr("default tag size"));
 
     // get tag names, IDs and sizes
     const auto ids = declare_parameter("tag.ids", std::vector<int64_t>{}, descr("tag ids", true));
@@ -189,8 +191,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     }
     else {
         throw std::runtime_error("Unsupported tag family: " + tag_family);
-    }
-    std::cout<<"finito costruttore"<<std::endl;
+    }    
 }
 
 AprilTagNode::~AprilTagNode()
@@ -202,6 +203,7 @@ AprilTagNode::~AprilTagNode()
 void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img,
                             const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci)
 {
+    
     // camera intrinsics for rectified images
     const std::array<double, 4> intrinsics = {msg_ci->p[0], msg_ci->p[5], msg_ci->p[2], msg_ci->p[6]};
 
@@ -220,6 +222,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
     // detect tags
     mutex.lock();
     zarray_t* detections = apriltag_detector_detect(td, &im);
+    bool debug = td->debug;
     mutex.unlock();
 
     if(profile)
@@ -266,6 +269,16 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
             tf.transform = estimate_pose(det, intrinsics, size);
             tfs.push_back(tf);
         }
+        if(debug){
+            cv::Mat debug_img_color = cv::imread("debug_output.pnm");
+            cv::Mat debug_img;
+            cv::cvtColor(debug_img_color, debug_img, cv::COLOR_BGR2GRAY);
+            //cv::Mat debug_img = cv::imread('output_img.pnm',-1);
+            RCLCPP_INFO_STREAM(this->get_logger(), "publishing debug image...");
+            cv_bridge::CvImage img_bridge = cv_bridge::CvImage(msg_img->header, sensor_msgs::image_encodings::MONO8, debug_img);
+            debug_img_pub->publish(*img_bridge.toImageMsg());
+
+        }
     }
 
     pub_detections->publish(msg_detections);
@@ -307,8 +320,6 @@ int main(int argc, char * argv[]){
     rclcpp::init(argc, argv);
     auto node = rclcpp::Node::make_shared("apriltag_ros_node");
     rclcpp::NodeOptions options;
-    std::cout<<"prova";
-    std::cout<<"prova";
     auto aprilTag =  std::make_shared<AprilTagNode>(options);
     rclcpp::Rate sleepRate(std::chrono::milliseconds(100));
     rclcpp::spin(aprilTag);
