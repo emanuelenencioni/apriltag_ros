@@ -21,6 +21,7 @@
 // apriltag
 #include "tag_functions.hpp"
 #include <apriltag/apriltag.h>
+#include <cmath>
 
 
 #define IF(N, V) \
@@ -77,11 +78,12 @@ private:
 
     // parameter
     std::mutex mutex;
-    double tag_edge_size;
+    double tag_edge_size; // used in the lock
     std::atomic<int> max_hamming;
     std::atomic<bool> profile;
     std::unordered_map<int, std::string> tag_frames;
     std::unordered_map<int, double> tag_sizes;
+    std::string debug_image_name;
 
     std::function<void(apriltag_family_t*)> tf_destructor;
 
@@ -157,7 +159,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
             RCLCPP_ERROR_STREAM(get_logger(), "Unknown pose estimation method '" << pose_estimation_method << "'.");
         }
     }
-
+    debug_image_name = std::string("debug_output");
     // detector parameters in "detector" namespace
     declare_parameter("detector.threads", td->nthreads, descr("number of threads"));
     declare_parameter("detector.decimate", td->quad_decimate, descr("decimate resolution for quad detection"));
@@ -165,6 +167,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     declare_parameter("detector.refine", td->refine_edges, descr("snap to strong gradients"));
     declare_parameter("detector.sharpening", td->decode_sharpening, descr("sharpening of decoded images"));
     declare_parameter("detector.debug", td->debug, descr("write additional debugging images to working directory"));
+    declare_parameter("detector.debug_image", std::string("debug_output"), descr("debug image name without extension"));
 
     declare_parameter("max_hamming", 0, descr("reject detections with more corrected bits than allowed"));
     declare_parameter("profile", false, descr("print profiling information to stdout"));
@@ -218,11 +221,12 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
     const cv::Mat img_uint8 = cv_bridge::toCvShare(msg_img, "mono8")->image;
 
     image_u8_t im{img_uint8.cols, img_uint8.rows, img_uint8.cols, img_uint8.data};
-
+    double local_tag_edge_size = 0.0;
     // detect tags
     mutex.lock();
     zarray_t* detections = apriltag_detector_detect(td, &im);
     bool debug = td->debug;
+    local_tag_edge_size = tag_edge_size;
     mutex.unlock();
 
     if(profile)
@@ -265,27 +269,31 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
             tf.header = msg_img->header;
             // set child frame name by generic tag name or configured tag name
             tf.child_frame_id = tag_frames.count(det->id) ? tag_frames.at(det->id) : std::string(det->family->name) + ":" + std::to_string(det->id);
-            const double size = tag_sizes.count(det->id) ? tag_sizes.at(det->id) : tag_edge_size;
+            const double size = tag_sizes.count(det->id) ? tag_sizes.at(det->id) : local_tag_edge_size;
             tf.transform = estimate_pose(det, intrinsics, size);
             tfs.push_back(tf);
         }
         if(debug){
-            cv::Mat debug_img_color = cv::imread("debug_output.pnm");
-            cv::Mat debug_img;
-            cv::cvtColor(debug_img_color, debug_img, cv::COLOR_BGR2GRAY);
-            //cv::Mat debug_img = cv::imread('output_img.pnm',-1);
-            RCLCPP_INFO_STREAM(this->get_logger(), "publishing debug image...");
-            cv_bridge::CvImage img_bridge = cv_bridge::CvImage(msg_img->header, sensor_msgs::image_encodings::MONO8, debug_img);
-            debug_img_pub->publish(*img_bridge.toImageMsg());
-
+            cv::Mat debug_img_color = cv::imread(debug_image_name + ".pnm");
+            if(!debug_img_color.empty()){
+                cv::Mat debug_img;
+                cv::cvtColor(debug_img_color, debug_img, cv::COLOR_BGR2GRAY);
+                //cv::Mat debug_img = cv::imread('output_img.pnm',-1);
+                cv_bridge::CvImage img_bridge = cv_bridge::CvImage(msg_img->header, sensor_msgs::image_encodings::MONO8, debug_img);
+                debug_img_pub->publish(*img_bridge.toImageMsg());
+            }
         }
     }
 
     pub_detections->publish(msg_detections);
 
-    if(estimate_pose != nullptr)
+    if(estimate_pose != nullptr){
         tf_broadcaster.sendTransform(tfs);
-
+        if(debug){
+            double dist = sqrt(pow(tfs[0].transform.translation.x, 2) + pow(tfs[0].transform.translation.y,2) + pow(tfs[0].transform.translation.z,2));
+            RCLCPP_INFO_STREAM(get_logger(), "tag distance: " << dist);
+        }
+    }
     apriltag_detections_destroy(detections);
 }
 
@@ -305,8 +313,10 @@ AprilTagNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
         IF("detector.refine", td->refine_edges)
         IF("detector.sharpening", td->decode_sharpening)
         IF("detector.debug", td->debug)
+        IF("detector.debug_image", debug_image_name)
         IF("max_hamming", max_hamming)
         IF("profile", profile)
+        IF("size", tag_edge_size)
     }
 
     mutex.unlock();
