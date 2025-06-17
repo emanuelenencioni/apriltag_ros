@@ -121,7 +121,7 @@ sub_cam(image_transport::create_camera_subscription(
 */
 
 AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
-  : Node("apriltag", options),
+  : Node("apriltag_ros_node", options),
     // parameter
     cb_parameter(add_on_set_parameters_callback(std::bind(&AprilTagNode::onParameter, this, std::placeholders::_1))),
     td(apriltag_detector_create()),
@@ -289,9 +289,9 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
 
     if(estimate_pose != nullptr){
         tf_broadcaster.sendTransform(tfs);
-        if(debug){
+        if(debug && tfs.size() > 0){
             double dist = sqrt(pow(tfs[0].transform.translation.x, 2) + pow(tfs[0].transform.translation.y,2) + pow(tfs[0].transform.translation.z,2));
-            RCLCPP_INFO_STREAM(get_logger(), "tag distance: " << dist);
+            RCLCPP_INFO_STREAM(get_logger(), "tag distance: " << dist << ", z: "<< tfs[0].transform.translation.z);
         }
     }
     apriltag_detections_destroy(detections);
@@ -328,7 +328,6 @@ AprilTagNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
 
 int main(int argc, char * argv[]){
     rclcpp::init(argc, argv);
-    auto node = rclcpp::Node::make_shared("apriltag_ros_node");
     rclcpp::NodeOptions options;
     auto aprilTag =  std::make_shared<AprilTagNode>(options);
     rclcpp::Rate sleepRate(std::chrono::milliseconds(100));
