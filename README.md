@@ -1,5 +1,5 @@
 # AprilTag ROS 2 Node
-
+Inspired from this https://github.com/christianrauch/apriltag_ros.
 This ROS 2 node uses the AprilTag library to detect AprilTags in images and publish their pose, id and additional metadata.
 
 For more information on AprilTag, the paper and the reference implementation: https://april.eecs.umich.edu/software/apriltag.html
