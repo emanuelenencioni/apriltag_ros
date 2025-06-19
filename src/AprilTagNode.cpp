@@ -131,8 +131,8 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     tf_broadcaster(this)
 {
     rclcpp::QoS qos = rclcpp::QoS(10);
-    image_sub.subscribe(this, "/image_raw", qos.get_rmw_qos_profile());
-    info_sub.subscribe(this, "/camera_info", qos.get_rmw_qos_profile());  
+    image_sub.subscribe(this, "zed/zed_node/left_raw/image_raw_color", qos.get_rmw_qos_profile());
+    info_sub.subscribe(this, "zed/zed_node/left_raw/left/camera_info", qos.get_rmw_qos_profile());
     sync = std::make_shared<Synchronizer<SyncPolicy>>(SyncPolicy(10), image_sub, info_sub);
     sync->registerCallback(std::bind(&AprilTagNode::onCamera, this, std::placeholders::_1, std::placeholders::_2));
 
@@ -284,7 +284,6 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
             }
         }
     }
-
     pub_detections->publish(msg_detections);
 
     if(estimate_pose != nullptr){
@@ -306,7 +305,6 @@ AprilTagNode::onParameter(const std::vector<rclcpp::Parameter>& parameters)
 
     for(const rclcpp::Parameter& parameter : parameters) {
         RCLCPP_DEBUG_STREAM(get_logger(), "setting: " << parameter);
-
         IF("detector.threads", td->nthreads)
         IF("detector.decimate", td->quad_decimate)
         IF("detector.blur", td->quad_sigma)
