@@ -18,15 +18,12 @@ def generate_launch_description():
     apriltag_node = Node(
         package=pkg_name,
         executable='apriltag_ros_node', # This should match the executable name in your CMakeLists.txt
-        name='apriltag_node',           # You can change the node name here
+        name='apriltag_node',
         output='screen',
         parameters=[config_file],
         remappings=[
-            # Remap the generic topics to your specific ZED camera topics
             ('image', '/image_raw'),
             ('camera_info', '/camera_info'),
-
-            # You can also remap the output topics if needed
             # ('detections', '/my_detections'),
             # ('debug_image', '/my_debug_image')
         ]
