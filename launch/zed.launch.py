@@ -10,7 +10,7 @@ def generate_launch_description():
     # Construct the path to the config file
     config_file = os.path.join(
         get_package_share_directory(pkg_name),
-        'config',
+        'cfg',
         'tags_36h11.yaml'
     )
 
@@ -24,6 +24,7 @@ def generate_launch_description():
         remappings=[
             ('image', 'zed/zed_node/left_raw/image_raw_color'),
             ('camera_info', 'zed/zed_node/left_raw/camera_info'),
+            # ('size', 
             # ('detections', '/my_detections'),
             # ('debug_image', '/my_debug_image')
         ]

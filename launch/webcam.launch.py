@@ -10,7 +10,7 @@ def generate_launch_description():
     # Construct the path to the config file
     config_file = os.path.join(
         get_package_share_directory(pkg_name),
-        'config',
+        'cfg',
         'tags_36h11.yaml'
     )
 
