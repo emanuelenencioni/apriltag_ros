@@ -101,7 +101,6 @@ private:
     void onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_img, const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci);
 
     rcl_interfaces::msg::SetParametersResult onParameter(const std::vector<rclcpp::Parameter>& parameters);
-    
 
 };
 
@@ -195,6 +194,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     else {
         throw std::runtime_error("Unsupported tag family: " + tag_family);
     }    
+
 }
 
 AprilTagNode::~AprilTagNode()
@@ -207,7 +207,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
                             const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg_ci)
 {
     
-    // camera intrinsics for rectified images
+    // camera intrinsics for recttf2ified images
     const std::array<double, 4> intrinsics = {msg_ci->p[0], msg_ci->p[5], msg_ci->p[2], msg_ci->p[6]};
 
     // check for valid intrinsics

@@ -6,6 +6,10 @@
 #include <tf2/convert.h>
 
 
+
+const cv::Matx33d rotationMatrix(0, 0, 1,
+                           -1, 0, 0,
+                           0, -1, 0);
 geometry_msgs::msg::Transform
 homography(apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize)
 {
@@ -50,8 +54,12 @@ pnp(apriltag_detection_t* const detection, const std::array<double, 4>& intr, do
 
     cv::Mat rvec, tvec;
     cv::solvePnP(objectPoints, imagePoints, cameraMatrix, {}, rvec, tvec);
+    
+    cv::Mat rvec_rotated = rotationMatrix * rvec;
 
-    return tf2::toMsg<std::pair<cv::Mat_<double>, cv::Mat_<double>>, geometry_msgs::msg::Transform>(std::make_pair(tvec, rvec));
+    cv::Mat tvec_rotated = rotationMatrix * tvec;
+
+    return tf2::toMsg<std::pair<cv::Mat_<double>, cv::Mat_<double>>, geometry_msgs::msg::Transform>(std::make_pair(tvec_rotated, rvec_rotated));
 }
 
 const std::unordered_map<std::string, pose_estimation_f> pose_estimation_methods{
