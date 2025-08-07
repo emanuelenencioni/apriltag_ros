@@ -2,7 +2,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
-
+DEBUG = os.environ.get('DEBUG', '0').lower() == '1'
 def generate_launch_description():
     # Define the package name
     pkg_name = 'apriltag_ros' # <--- CHANGE THIS to the name of your ROS package
@@ -13,6 +13,7 @@ def generate_launch_description():
         'cfg',
         'tags_36h11.yaml'
     )
+    log_level = 'debug' if DEBUG else 'info'
 
     # Define the node
     apriltag_node = Node(
@@ -27,7 +28,8 @@ def generate_launch_description():
             # ('size', 
             # ('detections', '/my_detections'),
             # ('debug_image', '/my_debug_image')
-        ]
+        ],
+        arguments=['--ros-args', '--log-level', log_level]
     )
 
     return LaunchDescription([
