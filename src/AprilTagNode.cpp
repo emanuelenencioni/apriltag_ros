@@ -129,10 +129,10 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     debug_img_pub(create_publisher<sensor_msgs::msg::Image>("debug_image", rclcpp::QoS(1))),
     tf_broadcaster(this)
 {
-    rclcpp::QoS qos = rclcpp::QoS(10);
+    rclcpp::QoS qos = rclcpp::QoS(50);
     image_sub.subscribe(this, "image", qos.get_rmw_qos_profile());
     info_sub.subscribe(this, "camera_info", qos.get_rmw_qos_profile());
-    sync = std::make_shared<Synchronizer<SyncPolicy>>(SyncPolicy(10), image_sub, info_sub);
+    sync = std::make_shared<Synchronizer<SyncPolicy>>(SyncPolicy(50), image_sub, info_sub);
     sync->registerCallback(std::bind(&AprilTagNode::onCamera, this, std::placeholders::_1, std::placeholders::_2));
 
     const std::string tag_family = declare_parameter("family", "36h11", descr("tag family", true));
@@ -233,7 +233,8 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
 
     apriltag_msgs::msg::AprilTagDetectionArray msg_detections;
     msg_detections.header = msg_img->header;
-
+    RCLCPP_INFO(get_logger(), "Received image %s with %d detections",
+                 msg_img->header.frame_id.c_str(), zarray_size(detections));
     std::vector<geometry_msgs::msg::TransformStamped> tfs;
     RCLCPP_DEBUG(get_logger(), "detections: %d", zarray_size(detections));
     for(int i = 0; i < zarray_size(detections); i++) {

@@ -3,6 +3,9 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
 
+DEBUG = os.environ.get('DEBUG', 'false').lower() == 'true' or os.environ.get('DEBUG', 'false').lower() == '1'
+
+
 def generate_launch_description():
     # Define the package name
     pkg_name = 'apriltag_ros' # <--- CHANGE THIS to the name of your ROS package
@@ -20,14 +23,14 @@ def generate_launch_description():
         executable='apriltag_ros_node', # This should match the executable name in your CMakeLists.txt
         name='apriltag_node',
         output='screen',
-        parameters=[config_file],
+        parameters=[config_file, {'size': 0.12}],
         remappings=[
             ('image', 'zed/zed_node/left_raw/image_raw_color'),
             ('camera_info', 'zed/zed_node/left_raw/camera_info'),
-            # ('size', 
-            # ('detections', '/my_detections'),
+             ('detections', '/apriltag_node/detections'),
             # ('debug_image', '/my_debug_image')
-        ]
+        ],
+        arguments=['--ros-args', '--log-level', 'debug' if DEBUG else 'info']
     )
 
     return LaunchDescription([
