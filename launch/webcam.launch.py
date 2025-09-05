@@ -16,7 +16,7 @@ def generate_launch_description():
         'cfg',
         'tags_36h11.yaml'
     )
-
+    log_level = 'debug' if DEBUG else 'info'
     # Define the node
     apriltag_node = Node(
         package=pkg_name,

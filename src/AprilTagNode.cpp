@@ -79,7 +79,7 @@ private:
     // parameter
     std::mutex mutex;
     double tag_edge_size; // used in the lock
-    std::atomic<int> max_hamming;
+    int max_hamming;
     std::atomic<bool> profile;
     std::unordered_map<int, std::string> tag_frames;
     std::unordered_map<int, double> tag_sizes;
@@ -246,10 +246,16 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
                      det->hamming, det->decision_margin);
 
         // ignore untracked tags
-        if(!tag_frames.empty() && !tag_frames.count(det->id)) { continue; }
+        if(!tag_frames.empty() && !tag_frames.count(det->id)) { 
+            RCLCPP_DEBUG(get_logger(), "detection %d ignored: not tracked", det->id);
+            continue; 
+        }
 
         // reject detections with more corrected bits than allowed
-        if(det->hamming > max_hamming) { continue; }
+        if(det->hamming > max_hamming) { 
+            RCLCPP_DEBUG(get_logger(), "detection %d rejected: hamming %d > max_hamming %d", det->id, det->hamming, max_hamming);
+            continue; 
+        }
 
         // detection
         apriltag_msgs::msg::AprilTagDetection msg_detection;
