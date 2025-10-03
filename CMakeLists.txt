@@ -44,6 +44,7 @@ find_package(Eigen3 REQUIRED)
 find_package(Threads REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core calib3d)
 find_package(geometry_msgs REQUIRED)
+find_package(apriltag REQUIRED)
 
 
 include_directories(${EIGEN3_INCLUDE_DIRS} ${APRILTAG_INCLUDE_DIRS} ${OPENCV_INCLUDE_DIRS})
