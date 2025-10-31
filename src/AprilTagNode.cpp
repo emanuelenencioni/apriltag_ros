@@ -129,10 +129,10 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     debug_img_pub(create_publisher<sensor_msgs::msg::Image>("debug_image", rclcpp::QoS(1))),
     tf_broadcaster(this)
 {
-    rclcpp::QoS qos = rclcpp::QoS(50);
+    rclcpp::QoS qos = rclcpp::QoS(5);
     image_sub.subscribe(this, "image", qos.get_rmw_qos_profile());
     info_sub.subscribe(this, "camera_info", qos.get_rmw_qos_profile());
-    sync = std::make_shared<Synchronizer<SyncPolicy>>(SyncPolicy(50), image_sub, info_sub);
+    sync = std::make_shared<Synchronizer<SyncPolicy>>(SyncPolicy(5), image_sub, info_sub);
     sync->registerCallback(std::bind(&AprilTagNode::onCamera, this, std::placeholders::_1, std::placeholders::_2));
 
     const std::string tag_family = declare_parameter("family", "36h11", descr("tag family", true));
