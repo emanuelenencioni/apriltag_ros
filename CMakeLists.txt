@@ -52,14 +52,16 @@ if(cv_bridge_VERSION VERSION_GREATER_EQUAL 3.3.0)
     add_compile_definitions(cv_bridge_HPP)
 endif()
 
-add_executable(${PROJECT_NAME}_node src/AprilTagNode.cpp
-src/conversion.cpp
-src/pose_estimation.cpp
-src/tag_functions.cpp
+# Build as a shared library for composable node
+add_library(${PROJECT_NAME}_component SHARED 
+    src/AprilTagNode.cpp
+    src/conversion.cpp
+    src/pose_estimation.cpp
+    src/tag_functions.cpp
 )
 
-target_link_libraries(${PROJECT_NAME}_node apriltag)
-ament_target_dependencies(${PROJECT_NAME}_node
+target_link_libraries(${PROJECT_NAME}_component apriltag)
+ament_target_dependencies(${PROJECT_NAME}_component
     rclcpp
     rclcpp_components
     sensor_msgs
@@ -72,9 +74,18 @@ ament_target_dependencies(${PROJECT_NAME}_node
     OpenCV
     apriltag
 )
+
+# Register the component
+rclcpp_components_register_node(${PROJECT_NAME}_component
+    PLUGIN "AprilTagNode"
+    EXECUTABLE ${PROJECT_NAME}_node
+)
+
 install(TARGETS
-  ${PROJECT_NAME}_node
-  DESTINATION lib/${PROJECT_NAME})
+  ${PROJECT_NAME}_component
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin)
 
 install(DIRECTORY cfg
     DESTINATION share/${PROJECT_NAME}
