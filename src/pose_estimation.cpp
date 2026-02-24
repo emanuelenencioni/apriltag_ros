@@ -1,25 +1,22 @@
 #include "pose_estimation.hpp"
-#include <Eigen/Geometry>
+
 #include <apriltag/apriltag_pose.h>
 #include <apriltag/common/homography.h>
-#include <opencv2/calib3d.hpp>
 #include <tf2/convert.h>
 
+#include <Eigen/Geometry>
+#include <opencv2/calib3d.hpp>
 
-
-const cv::Matx33d rotationMatrix(0, 0, 1,
-                           -1, 0, 0,
-                           0, -1, 0);
-geometry_msgs::msg::Transform
-homography(apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize)
-{
+const cv::Matx33d rotationMatrix(0, 0, 1, -1, 0, 0, 0, -1, 0);
+geometry_msgs::msg::Transform homography(apriltag_detection_t* const detection, const std::array<double, 4>& intr,
+                                         double tagsize) {
     apriltag_detection_info_t info = {detection, tagsize, intr[0], intr[1], intr[2], intr[3]};
 
     apriltag_pose_t pose;
     estimate_pose_for_tag_homography(&info, &pose);
 
     // rotate frame such that z points in the opposite direction towards the camera
-    for(int i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         // swap x and y axes
         std::swap(MATD_EL(pose.R, 0, i), MATD_EL(pose.R, 1, i));
         // invert z axis
@@ -29,9 +26,8 @@ homography(apriltag_detection_t* const detection, const std::array<double, 4>& i
     return tf2::toMsg<apriltag_pose_t, geometry_msgs::msg::Transform>(const_cast<const apriltag_pose_t&>(pose));
 }
 
-geometry_msgs::msg::Transform
-pnp(apriltag_detection_t* const detection, const std::array<double, 4>& intr, double tagsize)
-{
+geometry_msgs::msg::Transform pnp(apriltag_detection_t* const detection, const std::array<double, 4>& intr,
+                                  double tagsize) {
     const std::vector<cv::Point3d> objectPoints{
         {-tagsize / 2, -tagsize / 2, 0},
         {+tagsize / 2, -tagsize / 2, 0},
@@ -47,19 +43,20 @@ pnp(apriltag_detection_t* const detection, const std::array<double, 4>& intr, do
     };
 
     cv::Matx33d cameraMatrix;
-    cameraMatrix(0, 0) = intr[0];// fx
-    cameraMatrix(1, 1) = intr[1];// fy
-    cameraMatrix(0, 2) = intr[2];// cx
-    cameraMatrix(1, 2) = intr[3];// cy
+    cameraMatrix(0, 0) = intr[0];  // fx
+    cameraMatrix(1, 1) = intr[1];  // fy
+    cameraMatrix(0, 2) = intr[2];  // cx
+    cameraMatrix(1, 2) = intr[3];  // cy
 
     cv::Mat rvec, tvec;
     cv::solvePnP(objectPoints, imagePoints, cameraMatrix, {}, rvec, tvec);
-    
+
     cv::Mat rvec_rotated = rotationMatrix * rvec;
 
     cv::Mat tvec_rotated = rotationMatrix * tvec;
 
-    return tf2::toMsg<std::pair<cv::Mat_<double>, cv::Mat_<double>>, geometry_msgs::msg::Transform>(std::make_pair(tvec_rotated, rvec_rotated));
+    return tf2::toMsg<std::pair<cv::Mat_<double>, cv::Mat_<double>>, geometry_msgs::msg::Transform>(
+        std::make_pair(tvec_rotated, rvec_rotated));
 }
 
 const std::unordered_map<std::string, pose_estimation_f> pose_estimation_methods{
