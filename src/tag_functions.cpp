@@ -14,7 +14,7 @@
 #define TAG_FUN(name) {#name, {tag##name##_create, tag##name##_destroy}},
 
 // function pointer for tag family creation / destruction
-const std::unordered_map<std::string, std::pair<apriltag_family_t* (*) (void), void (*)(apriltag_family_t*)>> tag_fun{
+const std::unordered_map<std::string, std::pair<apriltag_family_t* (*)(void), void (*)(apriltag_family_t*)>> tag_fun{
     // clang-format off
     TAG_FUN(36h11)
     TAG_FUN(25h9)
