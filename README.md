@@ -5,7 +5,7 @@ This ROS 2 node uses the AprilTag library to detect AprilTags in images and publ
 For more information on AprilTag, the paper and the reference implementation: https://april.eecs.umich.edu/software/apriltag.html
 
 ## WARNING
-on Jetson Orin, you have to build with additional flags:
+On NVIDIA Jetson Orin (including the Orin Nano) you must build with the additional C++ flag shown below — this was verified on an Orin Nano to avoid Eigen/memcpy errors.
 ```bash
 colcon build --packages-select apriltag_ros --cmake-args "-DCMAKE_CXX_FLAGS='${CMAKE_CXX_FLAGS} -Wno-class-memaccess'"
 ```

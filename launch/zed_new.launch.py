@@ -24,7 +24,7 @@ def generate_launch_description():
         executable='apriltag_ros_node', # This should match the executable name in your CMakeLists.txt
         name='apriltag_node',
         output='screen',
-        parameters=[config_file, {'size': 0.12}],
+        parameters=[config_file],
         remappings=[
             ('image', '/zed/zed_node/left/color/raw/image'),
             ('camera_info', '/zed/zed_node/left/color/raw/image/camera_info'),
