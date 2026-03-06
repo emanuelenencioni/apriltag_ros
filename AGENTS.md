@@ -1,126 +1,277 @@
-# AGENTS.md - AprilTag ROS Development Guide
+# AGENTS.md - apriltag_ros
 
-This document provides essential guidelines for agentic coding tools (and developers) working in the `apriltag_ros` repository.
-
-## Important: Code Review Before Commits
-**Always ask the user for code review before creating any commits.** Present the changes clearly, ensure all tests and linters pass, and wait for user approval before committing to the repository.
+Instructions for AI coding agents working on this ROS 2 C++ AprilTag detection package.
 
 ## Project Overview
 
-**apriltag_ros** is a ROS 2 package for AprilTag detection. It implements a C++ node that detects AprilTags in camera images and publishes their pose, ID, and metadata. Built with CMake and uses ROS 2's ament_cmake build system.
+ROS 2 package (ament_cmake) for detecting AprilTags in images and publishing their pose, ID, and metadata. Target platform: ROS 2 on Ubuntu 22.04. Package provides both standalone executable and composable node for efficient intraprocess communication.
 
-## Build, Lint, and Test Commands
+## Docker Environment
 
-### Build the Package
+**IMPORTANT**: ROS 2 and colcon are only available inside a Docker container if not installed on the host machine.
+
+### Quick Docker Setup
+
+The simplest approach is to mount the **current working directory** (where OpenCode is opened) as a volume:
+
 ```bash
-# Build only this package
+# Get the current directory path (should be your ros2_ws or parent directory)
+export WORKSPACE_PATH=$(pwd)
+
+# Run Docker container with the current directory mounted
+docker container run -it --rm --privileged \
+  -v /dev/:/dev/ \
+  --env="DISPLAY" \
+  --env="QT_X11_NO_MITSHM=1" \
+  --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
+  --device /dev/video0 \
+  -v $WORKSPACE_PATH:/home/ros2_ws \
+  --net=host \
+  --name="apriltag_dev" \
+  --hostname="docker" \
+  ros2_humble
+```
+
+**Inside the Docker container**, the workspace will be available at `/home/ros2_ws` (or the path you specified in the mount).
+
+### Finding the Correct Workspace Location Inside Container
+
+Once inside the container, you can verify or find the workspace:
+
+```bash
+# Check if /home/ros2_ws exists and contains the workspace
+ls /home/ros2_ws
+
+# If you need to find where the workspace was mounted, check all volumes:
+mount | grep ros2
+
+# The workspace structure should contain directories like: src/, build/, install/, log/
+ls -la /home/ros2_ws/src/apriltag_ros
+```
+
+### Docker Image Source
+
+If the Docker image is not available locally, it can be obtained from:
+https://github.com/emanuelenencioni/docker_images (inside `ros_humble_desktop_full_cpu` directory)
+
+## Build Commands (inside Docker or native ROS 2)
+
+```bash
+# Navigate to workspace (use the location where you mounted it, typically /home/ros2_ws)
+cd /home/ros2_ws
+
+# Build the package
 colcon build --packages-select apriltag_ros
 
-# Build with Address Sanitizer (ASAN) for memory debugging
-colcon build --packages-select apriltag_ros --cmake-args "-DASAN=ON"
+# Build with debug symbols
+colcon build --packages-select apriltag_ros --cmake-args -DCMAKE_BUILD_TYPE=Debug
 
-# Jetson Orin special case (avoid Eigen memcpy errors)
-colcon build --packages-select apriltag_ros --cmake-args "-DCMAKE_CXX_FLAGS='${CMAKE_CXX_FLAGS} -Wno-class-memaccess'"
+# Build with AddressSanitizer enabled (for memory issue detection)
+colcon build --packages-select apriltag_ros --cmake-args -DASAN=ON
+
+# Source the workspace after building
+source install/setup.bash
 ```
 
-### Run Linters and Format Checks
-```bash
-# Run all linters (clang-format, cppcheck, ament_lint)
-colcon build --packages-select apriltag_ros --cmake-args "-DCMAKE_BUILD_TYPE=Release" --cmake-target test
+## Test & Lint Commands
 
-# Check formatting only
-cd apriltag_ros && clang-format -i src/*.cpp src/*.hpp
+```bash
+# Run all tests (linting only - no unit tests currently)
+colcon test --packages-select apriltag_ros
+
+# View test results
+colcon test-result --verbose
+
+# Run clang-format check
+colcon test --packages-select apriltag_ros --ctest-args -R clang_format
+
+# Run cppcheck (static analysis)
+colcon test --packages-select apriltag_ros --ctest-args -R cppcheck
+
+# Format code with clang-format (in-place)
+find src/apriltag_ros/src -name "*.cpp" -o -name "*.hpp" | xargs clang-format -i
 ```
 
-### Run Tests
-```bash
-# Run all tests for this package
-colcon build --packages-select apriltag_ros --cmake-args "-DCMAKE_BUILD_TYPE=Release" && colcon test --packages-select apriltag_ros
+## Directory Structure
 
-# Run a single test
-colcon test --packages-select apriltag_ros --ctest-args -R <test_name>
-
-# Run tests with verbose output
-colcon test --packages-select apriltag_ros --ctest-args -V
+```
+apriltag_ros/
+├── CMakeLists.txt           # Build configuration (C++14, ament_cmake)
+├── package.xml              # ROS 2 package manifest (format 3)
+├── README.md                # User documentation
+├── AGENTS.md                # This file
+├── .clang-format            # Clang format configuration
+├── cfg/
+│   └── tags_36h11.yaml      # AprilTag configuration example
+├── launch/
+│   └── camera_36h11.launch.yml   # Example launch file with composable node
+└── src/
+    ├── AprilTagNode.cpp     # Main node implementation
+    ├── pose_estimation.cpp  # Pose estimation methods
+    ├── pose_estimation.hpp
+    ├── tag_functions.cpp    # Tag family management
+    ├── tag_functions.hpp
+    ├── conversion.cpp       # Message conversion utilities
 ```
 
 ## Code Style Guidelines
 
-### C++ Standard and Compiler Flags
-- **C++ Standard:** C++14 (set in CMakeLists.txt)
-- **Strict Compilation:** All code must compile with `-Werror -Wall -Wextra -Wpedantic` flags
-- **Includes:** Project headers use `.hpp` extension; system headers use standard angle brackets
+### C++ Standards
+- **C++ Standard**: C++14 (required in CMakeLists.txt)
+- **Compiler warnings**: `-Werror -Wall -Wextra -Wpedantic` enabled (strict mode)
+- **Optional**: AddressSanitizer for memory safety (enable with ASAN=ON)
 
-### Include Order and Organization
-1. ROS 2 headers (e.g., `<rclcpp/rclcpp.hpp>`)
-2. Message types (e.g., `<apriltag_msgs/msg/april_tag_detection.hpp>`)
-3. External libraries (e.g., `<Eigen3/Eigen/Dense>`, `<opencv2/...>`)
-4. AprilTag library (e.g., `<apriltag/apriltag.h>`)
-5. Project headers (e.g., `#include "tag_functions.hpp"`)
-
-Example:
+### Header Guards & Pragmas
+Use `#pragma once` (preferred in this codebase):
 ```cpp
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/image.hpp>
-#include <apriltag_msgs/msg/april_tag_detection.hpp>
-#include <apriltag/apriltag.h>
-#include "tag_functions.hpp"
+#pragma once
+
+#include <some_header.hpp>
 ```
 
 ### Naming Conventions
-- **Classes/Types:** PascalCase (e.g., `AprilTagNode`)
-- **Functions/Methods:** snake_case (e.g., `detect_tags()`)
-- **Variables:** snake_case (e.g., `max_hamming`, `tag_id`)
-- **Constants/Macros:** UPPER_SNAKE_CASE (e.g., `IF(N, V)` macro in AprilTagNode.cpp)
-- **Private Members:** Use underscore suffix or leading underscore convention
+- **Classes/Types**: CamelCase (e.g., `AprilTagNode`, `PoseEstimation`)
+- **Functions/Methods**: snake_case (e.g., `get_tag_poses`, `estimate_pose`)
+- **Member variables**: snake_case with trailing underscore (e.g., `detector_`, `subscriber_`)
+- **Constants**: SCREAMING_SNAKE_CASE (e.g., `MAX_HAMMING_DISTANCE`)
+- **Local variables**: snake_case (e.g., `detection_count`, `tag_id`)
 
-### Formatting Standards
-- **Indentation:** 4 spaces (enforced by clang-format)
-- **Line Length:** Keep reasonable length; clang-format will enforce
-- **Braces:** Use K&R style (opening brace on same line)
-- **Spacing:** Use clang-format configuration `.clang-format` (located in CMakeLists.txt reference)
+### Includes Order
+1. Project headers (`#include "pose_estimation.hpp"`)
+2. Standard library (`#include <cmath>`, `#include <string>`)
+3. ROS 2 headers (`#include <rclcpp/rclcpp.hpp>`)
+4. Message headers (`#include <apriltag_msgs/msg/april_tag_detection.hpp>`)
+5. External libraries (`#include <apriltag/apriltag.h>`, `#include <opencv2/core.hpp>`)
 
-### Type Safety and Usage
-- **Template Usage:** Properly specialize templates for different types (e.g., `assign<T>()`, `assign_check<T>()`)
-- **Atomic Types:** Support `std::atomic<T>` for thread-safe parameter assignments
-- **Cv_bridge Compatibility:** Handle both old `.h` and new `.hpp` header formats:
-  ```cpp
-  #ifdef cv_bridge_HPP
-  #include <cv_bridge/cv_bridge.hpp>
-  #else
-  #include <cv_bridge/cv_bridge.h>
-  #endif
-  ```
+### Type Usage
+- Use `double` for floating-point values (not `float`)
+- Use `std::string` for text
+- Use `SharedPtr` for ROS message callbacks: `const sensor_msgs::msg::Image::SharedPtr msg`
+- Use `rclcpp::Time` for timestamps
+- Use typedefs for complex function pointers: `using pose_estimation_f = std::function<...>`
+- Use `std::unordered_map` and `std::array` for collections
 
-### Error Handling and Logging
-- **ROS Logging:** Use ROS 2 logging macros (e.g., `RCLCPP_INFO`, `RCLCPP_ERROR`)
-- **Parameter Validation:** Check parameter types and ranges before use
-- **Null Checks:** Always check pointers before dereferencing
-- **Exception Safety:** Prefer exceptions over raw error codes
+### ROS 2 Patterns
 
-### Code Organization
-- **Files:** Each major component should have corresponding `.cpp` and `.hpp` files
-- **Header Guards:** Use `#pragma once` or include guards
-- **Composability:** Support both standalone nodes and composable components (via `rclcpp_components`)
-- **Message Synchronization:** Use `message_filters::Synchronizer` for multi-topic synchronization
+**Parameter Declaration:**
+```cpp
+this->declare_parameter<std::string>("family", "36h11");
+std::string family = this->get_parameter("family").as_string();
+```
 
-## Key Files and Structure
-- **AprilTagNode.cpp/hpp:** Main detection node and composable component
-- **tag_functions.cpp/hpp:** Tag family initialization and selection
-- **pose_estimation.cpp/hpp:** Pose estimation algorithms (PnP and others)
-- **conversion.cpp/hpp:** Data type conversions
-- **CMakeLists.txt:** Build configuration with strict warnings enabled
-- **package.xml:** ROS 2 package metadata and dependencies
-- **cfg/:** Configuration files (YAML) for tag families and node parameters
+**Subscriptions with Synchronizer:**
+```cpp
+using SyncPolicy = message_filters::sync_policies::ApproximateTime<Image, CameraInfo>;
+auto sync = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(10), image_sub_, info_sub_);
+sync->registerCallback(&ClassName::callback, this);
+```
+
+**Logging:**
+```cpp
+RCLCPP_INFO(this->get_logger(), "Message: %s", value.c_str());
+RCLCPP_DEBUG(this->get_logger(), "Debug: %.2f", value);
+RCLCPP_WARN(this->get_logger(), "Warning message");
+RCLCPP_ERROR(this->get_logger(), "Error: %s", error_name);
+RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Throttled warning");
+```
+
+### Error Handling
+- Check library return codes and log descriptive errors
+- Use early returns on error conditions
+- Gracefully handle invalid parameters
+- Clean up resources in destructors
+- Never throw exceptions in callbacks
+
+```cpp
+if (detection == nullptr) {
+    RCLCPP_WARN(this->get_logger(), "Failed to detect tags");
+    return;
+}
+```
+
+### Value Clamping & Validation
+Always validate input ranges:
+```cpp
+hamming_distance = std::max(0, std::min(max_hamming_, hamming_distance));
+```
+
+## Launch & Runtime
+
+### Running Standalone Node
+```bash
+ros2 run apriltag_ros apriltag_ros_node --ros-args \
+    -r image_rect:=/camera/image \
+    -r camera_info:=/camera/camera_info \
+    --params-file `ros2 pkg prefix apriltag_ros`/share/apriltag_ros/cfg/tags_36h11.yaml
+```
+
+### Running Composable Node (Preferred)
+```bash
+ros2 launch apriltag_ros camera_36h11.launch.yml
+```
+
+### Debugging
+```bash
+# Run with verbose output
+ros2 run apriltag_ros apriltag_ros_node --ros-args --log-level DEBUG
+
+# View published detections
+ros2 topic echo /detections
+
+# View TF transforms
+ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 world camera_frame
+```
 
 ## Dependencies
-- **Core:** rclcpp, rclcpp_components, sensor_msgs, tf2_ros
-- **Message Types:** apriltag_msgs, geometry_msgs
-- **External:** apriltag, OpenCV, Eigen3, cv_bridge, image_transport
-- **Testing:** ament_cmake_clang_format, ament_cmake_cppcheck, ament_lint_auto
+
+### ROS 2 Packages
+- `rclcpp` - C++ ROS client library
+- `rclcpp_components` - Composable node support
+- `sensor_msgs` - Image and CameraInfo messages
+- `apriltag_msgs` - AprilTag detection messages
+- `geometry_msgs` - Transform and geometry messages
+- `tf2_ros` - Transform broadcaster
+- `image_transport` - Efficient image transfer
+- `cv_bridge` - OpenCV ↔ ROS message conversion
+
+### External Libraries
+- `apriltag` - AprilTag detection library (system dependency)
+- `OpenCV` - Computer vision (core, calib3d)
+- `Eigen3` - Linear algebra library
+
+### Build & Test Dependencies
+- `ament_cmake` - Build system
+- `ament_lint_auto` - Automatic linting
+- `ament_cmake_clang_format` - Code formatting checks
+- `ament_cmake_cppcheck` - Static analysis
 
 ## Important Notes
-- All code must pass clang-format checks and compile without warnings
-- Address Sanitizer (ASAN) can be enabled for memory issue detection
-- The node supports both raw and compressed image transport
-- Support both old and new versions of cv_bridge library
+
+### Jetson Orin Special Case
+On Jetson Orin, build with additional flags to avoid Eigen memcpy errors:
+```bash
+colcon build --packages-select apriltag_ros \
+  --cmake-args "-DCMAKE_CXX_FLAGS='${CMAKE_CXX_FLAGS} -Wno-class-memaccess'"
+```
+
+### Camera Intrinsics Requirements
+- Camera intrinsics (matrix `P`) in `CameraInfo` are required for pose estimation
+- Image timestamp and `CameraInfo` timestamp must match
+- Pose is computed from the homography `H` using camera intrinsics
+
+### AprilTag Families Supported
+16h5, 25h9, 36h11, Circle21h7, Circle49h12, Custom48h12, Standard41h12, Standard52h13
+
+### Configuration Best Practices
+- Start with `max_hamming: 0` (no bit errors tolerated) and increase if tags aren't detected
+- Adjust `decimate` parameter (usually 2.0) if detection is slow
+- Enable `refine: 1` to snap detections to strong gradients
+- Set `debug: 1` to write debugging images to the working directory
+
+### Commits
+- **ALWAYS ask the user before committing**. Do not automatically commit changes.
+- Verify code passes all linting (clang-format, cppcheck) before requesting commit.
+- Only commit when the user explicitly requests it or confirms correctness.
+
+### Testing Without Camera
+Use the `profile: true` parameter to enable performance profiling output to stdout.
