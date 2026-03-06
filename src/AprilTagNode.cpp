@@ -141,7 +141,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
     const auto frames =
         declare_parameter("tag.frames", std::vector<std::string>{}, descr("tag frame names per id", true));
     const auto sizes = declare_parameter("tag.sizes", std::vector<double>{}, descr("tag sizes per id", true));
-
+    const auto parent_frame_id = declare_parameter("parent_frame_id", std::string("camera"), descr("parent frame of the published tag poses", true));
     // get method for estimating tag pose
     const std::string& pose_estimation_method =
         declare_parameter("pose_estimation_method", "pnp",
@@ -168,6 +168,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
 
     declare_parameter("max_hamming", 0, descr("reject detections with more corrected bits than allowed"));
     declare_parameter("profile", false, descr("print profiling information to stdout"));
+    
 
     if (!frames.empty()) {
         if (ids.size() != frames.size()) {
@@ -283,6 +284,7 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         if (estimate_pose != nullptr && calibrated) {
             geometry_msgs::msg::TransformStamped tf;
             tf.header = msg_img->header;
+            tf.header.frame_id = parent_frame_id;  // set parent frame from parameter
             // set child frame name by generic tag name or configured tag name
             tf.child_frame_id = tag_frames.count(det->id)
                                     ? tag_frames.at(det->id)
