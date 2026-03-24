@@ -83,6 +83,7 @@ class AprilTagNode : public rclcpp::Node {
     std::unordered_map<int, double> tag_sizes;
     std::unordered_map<std::string, double> family_sizes;  // family name -> size
     std::string debug_image_name;
+    std::string parent_frame_id;
 
     // const image_transport::CameraSubscriber sub_cam;
     message_filters::Subscriber<Image> image_sub;
