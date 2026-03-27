@@ -14,7 +14,7 @@ def generate_launch_description():
     config_file = os.path.join(
         get_package_share_directory(pkg_name),
         'cfg',
-        'tags.yaml'
+        'tags_36h11.yaml'
     )
     log_level = 'debug' if DEBUG else 'info'
 
